@@ -30,8 +30,11 @@ namespace TrafficHours.Controllers
                 // Create csv file
                 var csv = await CreateCSV(employeesTrafficHours);
 
-                return View("~/Views/Home/Calculate.cshtml", new FileModel());
-
+                return View("~/Views/Home/Calculate.cshtml", new FileModel()
+                {
+                    EmployeeTrafficHours = employeesTrafficHours,
+                    FileName = csv
+                });
             }
             catch (Exception e)
             {
