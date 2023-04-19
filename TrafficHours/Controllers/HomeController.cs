@@ -396,5 +396,18 @@ namespace TrafficHours.Controllers
             return Status.Normal;
         }
 
+
+        [Route("Download")]
+        public IActionResult Download(string fileName)
+        {
+            // Build the File Path.
+            string path = @"UploadedFiles\" + fileName;
+
+            // Read the File data into Byte Array.
+            byte[] bytes = System.IO.File.ReadAllBytes(path);
+
+            // Return the File to Download.
+            return File(bytes, "application/octet-stream", fileName);
+        }
     }
 }
