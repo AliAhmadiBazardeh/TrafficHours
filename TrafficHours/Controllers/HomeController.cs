@@ -1,7 +1,11 @@
-﻿using EmployeesTrafficHours.Models;
+﻿using CSVDownload.Extensions;
+using EmployeesTrafficHours.Extensions;
+using EmployeesTrafficHours.Models;
 using EmployeesTrafficHours.Models.Common;
 using Microsoft.AspNetCore.Mvc;
+using System.Data;
 using System.Text;
+using Utilities;
 
 namespace TrafficHours.Controllers
 {
@@ -22,6 +26,9 @@ namespace TrafficHours.Controllers
 
                 // Convert model to report and calculate conditions
                 var employeesTrafficHours = await ConvertToReport(employeesTraffics);
+
+                // Create csv file
+                var csv = await CreateCSV(employeesTrafficHours);
 
                 return View("~/Views/Home/Calculate.cshtml", new FileModel());
 
@@ -235,6 +242,62 @@ namespace TrafficHours.Controllers
             #endregion
 
             return employeesTrafficHours;
+        }
+
+        private async Task<string> CreateCSV(List<EmployeeTrafficHours> employeesTrafficHours)
+        {
+            DataTable myDataTable = new DataTable();
+
+            myDataTable.Columns.Add("ردیف", typeof(string));
+            myDataTable.Columns.Add("تاریخ", typeof(string));
+            myDataTable.Columns.Add("روز", typeof(string));
+            myDataTable.Columns.Add("نام فرد", typeof(string));
+            myDataTable.Columns.Add("نوع", typeof(string));
+            myDataTable.Columns.Add("کارکرد", typeof(string));
+            myDataTable.Columns.Add("اولین ورود", typeof(string));
+            myDataTable.Columns.Add("آخرین خروج", typeof(string));
+            myDataTable.Columns.Add("رکوردها", typeof(string));
+
+            int i = 1;
+            foreach (var TrafficHours in employeesTrafficHours.OrderBy(x => x.Date))
+            {
+                // Space between times
+                string times = "";
+
+                foreach (var time in TrafficHours.Times)
+                {
+                    times += time + " ";
+                }
+
+                //Daily vacation are considered in previous functions and do not need to be calculated
+                if (TrafficHours.Status != Status.DaylyVacation)
+                {
+                    //TODO calculate effort and status.
+                }
+
+                myDataTable.Rows.Add(i.ToString(), ShamsiDate.ConvertDateToShamsi(TrafficHours.Date), TrafficHours.Day.GetEnumDescription(), TrafficHours.Name,
+                    TrafficHours.Status.GetEnumDescription(), TrafficHours.EffortTime, TrafficHours.Times.FirstOrDefault(), TrafficHours.Times.LastOrDefault(), times);
+            }
+
+            var workingDates = employeesTrafficHours.DistinctBy(x => x.Date).Select(x => x.Date).ToList();
+
+            string fileName = "EmployeesTraffic " +
+                DateTime.Today.ToString("yyyy-MM-dd") + " " +
+                DateTime.Now.TimeOfDay.ToString(@"hh\-mm\-ss") + ".csv";
+
+            // requires using System
+            string path = @"UploadedFiles\" + fileName;
+
+            // this is an extension method
+            var output = myDataTable.ToCsvByteArray();
+
+            // Create the file, or overwrite if the file exists.
+            using (FileStream fs = System.IO.File.Create(path))
+            {
+                fs.Write(output, 0, output.Length);
+            }
+
+            return fileName;
         }
 
 
