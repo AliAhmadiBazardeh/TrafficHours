@@ -1,4 +1,5 @@
 ﻿using EmployeesTrafficHours.Models;
+using EmployeesTrafficHours.Models.Common;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
 
@@ -18,6 +19,9 @@ namespace TrafficHours.Controllers
             {
                 // Convert file to model
                 var employeesTraffics = await ConvertFileToViewModel(file);
+
+                // Convert model to report and calculate conditions
+                var employeesTrafficHours = await ConvertToReport(employeesTraffics);
 
                 return View("~/Views/Home/Calculate.cshtml", new FileModel());
 
@@ -128,6 +132,111 @@ namespace TrafficHours.Controllers
             }
             return employeesTraffics;
         }
+
+        private async Task<List<EmployeeTrafficHours>> ConvertToReport(List<EmployeeTraffic> employeesTraffics)
+        {
+            List<EmployeeTrafficHours> employeesTrafficHours = new List<EmployeeTrafficHours>();
+            List<DateTrafficEmployee> datesTrafficEmployees = new List<DateTrafficEmployee>();
+
+            foreach (var record in employeesTraffics)
+            {
+
+                #region Creating working dates list and employees who worked on the date
+
+                var workDate = datesTrafficEmployees.SingleOrDefault(x => x.Date == record.Date);
+
+                if (workDate != null)
+                {
+                    if (!workDate.Employees.Any(x => x.Id == record.Id))
+                    {
+                        workDate.Employees.Add(new Employee()
+                        {
+                            Id = record.Id,
+                            Name = record.Name
+                        });
+                    }
+
+                }
+                else
+                {
+
+                    datesTrafficEmployees.Add(new DateTrafficEmployee
+                    {
+                        Date = record.Date,
+                        Day = (DaysOfWeek)(int)record.DateTime.DayOfWeek,
+                        Employees = new List<Employee>() {
+                            new Employee() {
+                                Name = record.Name, Id = record.Id
+                            }
+                        },
+                    });
+                }
+
+
+                #endregion
+
+
+                #region Create final list
+
+                var employeeTraffic = employeesTrafficHours.SingleOrDefault(x => x.Id == record.Id && x.Date == record.Date);
+                if (employeeTraffic != null)
+                {
+                    employeeTraffic.DateTimes.Add(record.DateTime);
+                    employeeTraffic.Times.Add(record.Time);
+                }
+                else
+                {
+                    employeesTrafficHours.Add(new EmployeeTrafficHours
+                    {
+                        Id = record.Id,
+                        Name = record.Name,
+                        Date = record.Date,
+                        Day = (DaysOfWeek)(int)record.DateTime.DayOfWeek,
+                        Times = new List<string> { record.Time },
+                        DateTimes = new List<DateTime> { record.DateTime },
+                    });
+                }
+
+                #endregion
+
+            }
+
+            // Getting list of all employees
+            var employees = employeesTrafficHours.DistinctBy(x => x.Id).Select(x => new Employee()
+            {
+                Id = x.Id,
+                Name = x.Name
+            }).ToList();
+
+            #region Finding dayly vacation from working dates list
+
+            foreach (var workDate in datesTrafficEmployees)
+            {
+
+                foreach (var employee in employees)
+                {
+                    if (!workDate.Employees.Any(x => x.Id == employee.Id))
+                    {
+                        employeesTrafficHours.Add(new EmployeeTrafficHours
+                        {
+                            Id = employee.Id,
+                            Name = employee.Name,
+                            Date = workDate.Date,
+                            Day = workDate.Day,
+                            Status = Status.DaylyVacation,
+                            DateTimes = new List<DateTime>(),
+                            Times = new List<string>(),
+                            EffortTime = new TimeSpan(0, 0, 0)
+                        });
+                    }
+                }
+            }
+
+            #endregion
+
+            return employeesTrafficHours;
+        }
+
 
     }
 }
