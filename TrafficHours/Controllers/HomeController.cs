@@ -275,7 +275,9 @@ namespace TrafficHours.Controllers
                 //Daily vacation are considered in previous functions and do not need to be calculated
                 if (TrafficHours.Status != Status.DaylyVacation)
                 {
-                    //TODO calculate effort and status.
+                    TrafficHours.EffortTime = EffortCalculate(TrafficHours.DateTimes);
+
+                    TrafficHours.Status = StatusCalculate(TrafficHours);
                 }
 
                 myDataTable.Rows.Add(i.ToString(), ShamsiDate.ConvertDateToShamsi(TrafficHours.Date), TrafficHours.Day.GetEnumDescription(), TrafficHours.Name,
@@ -303,6 +305,96 @@ namespace TrafficHours.Controllers
             return fileName;
         }
 
+        private TimeSpan EffortCalculate(List<DateTime> TrafficHours)
+        {
+            TimeSpan effortTime = new TimeSpan();
+
+            if (TrafficHours.Count % 2 == 0)
+            {
+
+
+                effortTime = TrafficHours.Last().TimeOfDay - TrafficHours.First().TimeOfDay;
+
+                //var allTimes = TrafficHours.ToArray();
+
+                //while (allTimes.Length > 0)
+                //{
+
+                //    //var time2 = allTimes.Take(2);
+                //    //var res = time2.Last().TimeOfDay - time2.First().TimeOfDay;
+
+                //    //effortTime += res;
+
+                //    //allTimes = allTimes.Skip(1).ToArray();
+                //    //allTimes = allTimes.Skip(1).ToArray();
+
+                //}
+
+            }
+
+            return effortTime;
+        }
+        private Status StatusCalculate(EmployeeTrafficHours employeeTrafficHours)
+        {
+            TimeSpan minArrivalValue = new TimeSpan(8, 30, 0);
+            TimeSpan maxArrivalValue = new TimeSpan(8, 45, 0);
+
+            TimeSpan minDepartureValue = new TimeSpan(17, 0, 0);
+            TimeSpan maxDepartureValue = new TimeSpan(17, 15, 0);
+
+            TimeSpan minEffortTime = new TimeSpan(8, 30, 0);
+
+            TimeSpan firstArrivalTime = employeeTrafficHours.DateTimes.First().TimeOfDay;
+            TimeSpan lastDepartureTime = employeeTrafficHours.DateTimes.Last().TimeOfDay;
+
+            // If has a record earlier than 8:45 and after 8:30, then has arrived on time.
+            //var respectArrivalTime = employeeTrafficHours.DateTimes
+            //    .Any(x => x.TimeOfDay > minArrivalValue && x.TimeOfDay < maxArrivalValue);
+
+            // If has a record after 17:00 and before 17:15, it means left on time.
+            //var respectDepartureTime = employeeTrafficHours.DateTimes
+            //    .Any(x => x.TimeOfDay > minDepartureValue && x.TimeOfDay < maxDepartureValue);
+
+            // If had a record earlier than 8:45, it means arrived on time
+            var respectArrivalTime = employeeTrafficHours.DateTimes
+             .Any(x => x.TimeOfDay < maxArrivalValue);
+
+            // If had a record after 17:00, it means left on time
+            var respectDepartureTime = employeeTrafficHours.DateTimes
+                .Any(x => x.TimeOfDay > minDepartureValue);
+
+            // Checking respecting entry and exit
+            var respectTrafficTime = respectArrivalTime == true && respectDepartureTime == true ? true : false;
+
+            // If the number of records was odd, an error occurred
+            if (employeeTrafficHours.Times.Count % 2 != 0)
+            {
+                return Status.Error;
+            }
+
+            // The working hours have not been fully observed and more than two entry and exit records have been recorded, so it is an hourly vacation
+            if (employeeTrafficHours.EffortTime < minEffortTime && employeeTrafficHours.DateTimes.Count > 2)
+            {
+                // Delay cannot be considered as hourly vacation
+                if (!respectArrivalTime)
+                {
+                    return Status.Delay;
+                }
+                else
+                {
+                    return Status.HourlyVacation;
+                }
+            }
+
+            // Delay is when the minimum working hours or entry and exit are not observed
+            if (employeeTrafficHours.EffortTime < minEffortTime || !respectTrafficTime)
+            {
+                return Status.Delay;
+            }
+
+            // In other cases, it is the normal type
+            return Status.Normal;
+        }
 
     }
 }
